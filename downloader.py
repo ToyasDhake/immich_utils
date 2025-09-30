@@ -10,10 +10,15 @@ import requests
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Any
 import argparse
 from urllib.parse import urljoin
+from tqdm import tqdm
+
+
+DEVICE_ID_TO_SKIP = "Library Import"
 
 
 class ImmichDownloader:
@@ -88,11 +93,11 @@ class ImmichDownloader:
                 # Filter out assets from network drive
                 filtered_assets = [
                     asset for asset in assets 
-                    if asset.get("deviceId") != "Library Import"
+                    if asset.get("deviceId") != DEVICE_ID_TO_SKIP
                 ]
                 
                 all_assets.extend(filtered_assets)
-                print(f"  Found {len(assets)} assets, {len(filtered_assets)} not from network drive")
+                print(f"  Found {len(assets)} assets, {len(filtered_assets)} not from network drive, total: {len(all_assets)}")
                 
                 # Check if there's a next page
                 if not data.get("assets", {}).get("nextPage"):
@@ -112,7 +117,7 @@ class ImmichDownloader:
         filepath = self.output_dir / filename
         
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(assets, f, indent=2, ensure_ascii=False)
+            json.dump(assets, f, indent=4, ensure_ascii=False)
         
         print(f"✓ Assets list saved to: {filepath}")
     
@@ -181,10 +186,37 @@ class ImmichDownloader:
             )
             response.raise_for_status()
             
-            # Save the file
+            # Get total file size for progress tracking
+            total_size = int(response.headers.get('content-length', 0))
+            
+            # Save the file with progress tracking
             with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                downloaded = 0
+                start_time = time.time()
+                
+                # Create progress bar
+                with tqdm(
+                    total=total_size,
+                    unit='B',
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=f"  {original_filename[:30]}{'...' if len(original_filename) > 30 else ''}",
+                    ncols=100,
+                    leave=False
+                ) as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            # Update progress bar
+                            pbar.update(len(chunk))
+                            
+                            # Calculate and display speed
+                            elapsed_time = time.time() - start_time
+                            if elapsed_time > 0:
+                                speed_mbps = (downloaded / (1024 * 1024)) / elapsed_time
+                                pbar.set_postfix(speed=f"{speed_mbps:.2f} MB/s")
             
             print(f"  ✓ Downloaded: {original_filename}")
             return True
