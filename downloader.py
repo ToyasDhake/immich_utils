@@ -6,11 +6,14 @@ This script fetches images and videos from an Immich server that are not from
 the network drive (deviceId != "Library Import") and downloads them locally.
 """
 
+import multiprocessing
 import requests
 import json
 import os
 import sys
 import time
+import hashlib
+import base64
 from pathlib import Path
 from typing import List, Dict, Any
 import argparse
@@ -112,7 +115,7 @@ class ImmichDownloader:
         print(f"✓ Total assets to download: {len(all_assets)}")
         return all_assets
     
-    def save_assets_list(self, assets: List[Dict[str, Any]], filename: str = "assets_to_download.json"):
+    def save_assets_list(self, assets: List[Dict[str, Any]], filename: str = "downloaded_assets.json"):
         """Save the list of assets to download to a JSON file."""
         filepath = self.output_dir / filename
         
@@ -176,6 +179,8 @@ class ImmichDownloader:
         if filepath is None:
             print(f"  ⏭️  Skipping {original_filename} (unable to find unique filename)")
             return True
+
+        asset['downloadFileName'] = filepath.name
         
         try:
             # Download the asset
@@ -247,7 +252,61 @@ class ImmichDownloader:
         print(f"\n✓ Download complete!")
         print(f"  Successful: {successful_downloads}")
         print(f"  Failed: {failed_downloads}")
-    
+
+    def run_hash_check(self, asset: Dict[str, Any]):
+        file_path = self.data_dir / asset['downloadFileName']
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            print(f"  ✗ {asset['downloadFileName']} not found")
+            return 'missing'
+        
+        # Check SHA1 checksum if available
+        if 'checksum' in asset and asset['checksum']:
+            try:
+                # Calculate SHA1 of the downloaded file
+                sha1_hash = hashlib.sha1()
+                with open(file_path, 'rb') as f:
+                    for chunk in iter(lambda: f.read(8192), b""):
+                        sha1_hash.update(chunk)
+                
+                # Get the calculated hash as base64
+                calculated_checksum = base64.b64encode(sha1_hash.digest()).decode('utf-8')
+                
+                # Compare with stored checksum
+                if calculated_checksum != asset['checksum']:
+                    print(f"  ✗ {asset['originalFileName']} checksum mismatch")
+                    print(f"    Expected: {asset['checksum']}")
+                    print(f"    Calculated: {calculated_checksum}")
+                    return 'mismatch'
+                else:
+                    return 'verified'
+                    
+            except Exception as e:
+                print(f"  ✗ {asset['originalFileName']} checksum verification failed: {e}")
+                return 'mismatch'
+        else:
+            return 'no_checksum'
+
+    def check_downloaded_assets_integrity(self, assets: List[Dict[str, Any]]):
+        """Check the integrity of the downloaded assets."""
+        print("\nChecking downloaded assets integrity...")
+
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()-2) as pool:
+            results = pool.map(self.run_hash_check, assets)
+
+        for result, asset in zip(results, assets):
+            asset['integrity'] = result
+
+        # Summary
+        print(f"\nIntegrity check complete:")
+        print(f"  Missing files: {results.count('missing')}")
+        print(f"  Checksum mismatches: {results.count('mismatch')}")
+        print(f"  Total checked: {len(assets)}")
+
+        return assets
+
+
     def run(self, download: bool = True):
         """
         Main method to run the downloader.
@@ -269,12 +328,14 @@ class ImmichDownloader:
             print("No assets found to download.")
             return True
         
-        # Save assets list to JSON
-        self.save_assets_list(assets)
-        
         # Download assets if requested
         if download:
             self.download_all_assets(assets)
+
+        assets = self.check_downloaded_assets_integrity(assets)
+
+        # Save assets list to JSON
+        self.save_assets_list(assets)
         
         return True
 
