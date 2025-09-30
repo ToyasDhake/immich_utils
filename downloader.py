@@ -183,9 +183,9 @@ class ImmichDownloader:
         asset['downloadFileName'] = filepath.name
         
         try:
-            # Download the asset
+            # Download the asset file content
             response = requests.get(
-                f"{self.server_url}/api/assets/{asset_id}",
+                f"{self.server_url}/api/assets/{asset_id}/original",
                 headers=self.headers,
                 stream=True
             )
@@ -223,7 +223,8 @@ class ImmichDownloader:
                                 speed_mbps = (downloaded / (1024 * 1024)) / elapsed_time
                                 pbar.set_postfix(speed=f"{speed_mbps:.2f} MB/s")
             
-            print(f"  ✓ Downloaded: {original_filename}")
+            downloaded_mb = downloaded / (1024 * 1024)
+            print(f"  ✓ Downloaded: {original_filename} ({downloaded_mb:.2f} MB)")
             return True
             
         except requests.exceptions.RequestException as e:
