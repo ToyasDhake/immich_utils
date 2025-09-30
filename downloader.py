@@ -17,7 +17,7 @@ from urllib.parse import urljoin
 
 
 class ImmichDownloader:
-    def __init__(self, server_url: str, api_key: str, output_dir: str = "download"):
+    def __init__(self, server_url: str, api_key: str, output_dir: str = "downloads"):
         """
         Initialize the Immich downloader.
         
@@ -216,7 +216,7 @@ def main():
     parser = argparse.ArgumentParser(description="Download assets from Immich server")
     parser.add_argument("server_url", help="Immich server URL (e.g., https://immich.example.com)")
     parser.add_argument("api_key", help="API key with full access")
-    parser.add_argument("-o", "--output", default="download", help="Output directory (default: download)")
+    parser.add_argument("-o", "--output", default="downloads", help="Output directory (default: downloads)")
     parser.add_argument("--list-only", action="store_true", help="Only fetch and save the assets list, don't download")
     
     args = parser.parse_args()
