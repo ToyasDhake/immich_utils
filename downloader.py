@@ -116,6 +116,41 @@ class ImmichDownloader:
         
         print(f"✓ Assets list saved to: {filepath}")
     
+    def _get_unique_filepath(self, directory: Path, filename: str) -> Path:
+        """
+        Generate a unique filepath by adding _1, _2, etc. suffix if file exists.
+        
+        Args:
+            directory: Directory where the file should be saved
+            filename: Original filename
+            
+        Returns:
+            Path: Unique filepath, or None if unable to find unique name
+        """
+        filepath = directory / filename
+        
+        # If file doesn't exist, return the original path
+        if not filepath.exists():
+            return filepath
+        
+        # Split filename and extension
+        name, ext = os.path.splitext(filename)
+        
+        # Try adding _1, _2, etc. until we find a unique name
+        counter = 1
+        while counter < 1000:  # Prevent infinite loop
+            new_filename = f"{name}_{counter}{ext}"
+            new_filepath = directory / new_filename
+            
+            if not new_filepath.exists():
+                print(f"  📝 Renaming {filename} to {new_filename} (duplicate found)")
+                return new_filepath
+            
+            counter += 1
+        
+        # If we couldn't find a unique name after 1000 attempts, return None
+        return None
+    
     def download_asset(self, asset: Dict[str, Any]) -> bool:
         """
         Download a single asset from the Immich server.
@@ -129,12 +164,12 @@ class ImmichDownloader:
         asset_id = asset["id"]
         original_filename = asset["originalFileName"]
         
-        # Save all files in the data directory
-        filepath = self.data_dir / original_filename
+        # Generate unique filename if file already exists
+        filepath = self._get_unique_filepath(self.data_dir, original_filename)
         
-        # Skip if file already exists
-        if filepath.exists():
-            print(f"  ⏭️  Skipping {original_filename} (already exists)")
+        # Skip if file already exists and we couldn't find a unique name
+        if filepath is None:
+            print(f"  ⏭️  Skipping {original_filename} (unable to find unique filename)")
             return True
         
         try:
