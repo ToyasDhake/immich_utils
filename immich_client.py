@@ -3,7 +3,7 @@ import time
 from typing import Any
 import requests
 import structlog
-import tqdm
+from tqdm import tqdm
 
 logger = structlog.get_logger()
 

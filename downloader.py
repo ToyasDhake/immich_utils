@@ -49,7 +49,7 @@ class ImmichDownloader:
         size = 100  # Fetch 100 assets per page for efficiency
         
         while True:
-            logger.info(f'Fetching page {page}...')
+            logger.debug(f'Fetching page {page}...')
             
             payload = {
                 'size': size,
@@ -75,7 +75,7 @@ class ImmichDownloader:
             ]
             
             all_assets.extend(filtered_assets)
-            logger.info(f'Found {len(all_assets)} assets so far')
+            logger.debug(f'Found {len(all_assets)} assets so far')
             
             # Check if there's a next page
             if not data.get('assets', {}).get('nextPage'):
