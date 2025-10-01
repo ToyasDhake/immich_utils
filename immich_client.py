@@ -106,4 +106,27 @@ class ImmichClient:
         except requests.exceptions.RequestException as e:
             logger.error(f'Failed to download {original_filename}: {e}')
             return ''
-            
+
+
+    def delete_assets(self, asset_ids: list[str], force: bool = False) -> bool:
+        """Delete assets from the Immich server.
+        
+        Args:
+            asset_ids: List of asset IDs to delete
+            force: Whether to force deletion (default: False)
+        """
+        try:
+            payload = {
+                'force': force,
+                'ids': asset_ids
+            }
+            response = requests.delete(
+                f'{self.server_url}/api/assets',
+                headers=self.headers,
+                json=payload
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to delete {asset_ids}: {e}')
+            return False
