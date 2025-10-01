@@ -14,15 +14,7 @@ def chunk_list_for_loop(data_list: list[str], chunk_size: int) -> list[list[str]
     return result_chunks
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description='Delete downloaded and verified assets from Immich server')
-    parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
-    parser.add_argument('api_key', help='API key with full access')
-    parser.add_argument('--deletion_file', default='downloads/downloaded_assets.json', 
-            help='File with list of asset IDs to delete')
-    
-    args = parser.parse_args()
-    
+def main(args: argparse.Namespace) -> None:
     client = ImmichClient(args.server_url, args.api_key)
 
     with open(args.deletion_file) as f:
@@ -42,4 +34,12 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Delete downloaded and verified assets from Immich server')
+    parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
+    parser.add_argument('api_key', help='API key with full access')
+    parser.add_argument('--deletion_file', default='downloads/downloaded_assets.json', 
+            help='File with list of asset IDs to delete')
+    
+    args = parser.parse_args()
+
     main()

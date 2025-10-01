@@ -297,7 +297,12 @@ class ImmichDownloader:
         logger.info('Completed without any errors')
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
+    downloader = ImmichDownloader(args.server_url, args.api_key, args.output)
+    downloader.run(download=not args.list_only)
+
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download assets from Immich server')
     parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
     parser.add_argument('api_key', help='API key with full access')
@@ -306,10 +311,5 @@ def main() -> None:
             help='Only fetch and save the assets list, do not download')
     
     args = parser.parse_args()
-    
-    downloader = ImmichDownloader(args.server_url, args.api_key, args.output)
-    result = downloader.run(download=not args.list_only)
 
-
-if __name__ == '__main__':
-    main()
+    main(args)
