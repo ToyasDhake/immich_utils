@@ -232,6 +232,19 @@ class ImmichDownloader:
             results = pool.map(self.run_hash_check, assets)
 
         for result, asset in zip(results, assets):
+            if result in ['missing', 'mismatch']:
+                logger.info(f'Retrying download for {asset["originalFileName"]}')
+                download_filename = self.download_asset(asset)
+                if download_filename != '':
+                    asset['downloadFileName'] = download_filename
+                    result = self.run_hash_check(asset)
+                    if result in ['missing', 'mismatch']:
+                        logger.error(f'Failed to download {asset["originalFileName"]}')
+                        result += '_failed'
+                else:
+                    logger.error(f'Failed to download {asset["originalFileName"]}')
+                    result = 'failed_redownload'
+                    
             asset['integrity'] = result
 
         # Summary
