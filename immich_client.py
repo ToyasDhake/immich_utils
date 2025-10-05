@@ -130,3 +130,87 @@ class ImmichClient:
         except requests.exceptions.RequestException as e:
             logger.error(f'Failed to delete {asset_ids}: {e}')
             return False
+
+
+    def create_album(self, album_name: str, asset_ids: list[str]) -> bool:
+        """Create an album on the Immich server.
+        
+        Args:
+            album_name: Name of the album
+            asset_ids: List of asset IDs to add to the album
+        """
+        if not album_name:
+            album_name = 'Untitled'
+        try:
+            payload = {
+                'albumName': album_name,
+                'assetIds': asset_ids
+            }
+            response = requests.post(
+                f'{self.server_url}/api/albums',
+                headers=self.headers,
+                json=payload
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to create album {album_name}: {e}')
+            return False
+
+
+    def add_assets_to_album(self, album_id: str, asset_ids: list[str]) -> bool:
+        """Add assets to an existing album on the Immich server."""
+        try:
+            payload = {
+                'ids': asset_ids
+            }
+            response = requests.post(
+                f'{self.server_url}/api/albums/{album_id}/assets',
+                headers=self.headers,
+                json=payload
+            )
+            response.raise_for_status()
+            # Check for response properly
+            return True
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to add assets to album {album_id}: {e}')
+            return False
+
+
+    def fetch_albums(self) -> list[str]:
+        """Fetch all albums from the Immich server."""
+        try:
+            response = requests.get(
+                f'{self.server_url}/api/albums',
+                headers=self.headers
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to fetch albums: {e}')
+            return []
+
+
+    def fetch_album_tree(self) -> tuple[dict[str, list[str]], dict[str, str]]:
+        """Fetch album tree from the Immich server."""
+        try:
+            album_ids = [album['id'] for album in self.fetch_albums()]
+            album_tree = {}
+            album_id_mapping = {}
+            for album_id in album_ids:
+                response = requests.get(
+                    f'{self.server_url}/api/albums/{album_id}',
+                    headers=self.headers
+                )
+                response.raise_for_status()
+                album = response.json()
+                album_tree[album['albumName']] = [asset['id'] for asset in album['assets']]
+                # This is not a one to one mapping, there can be multiple albums with the same name
+                # But ideally because we are creating albums bases on the path of the assets,
+                # there should be only one album with the same name
+                # If there are multiple albums with the same name, which is seen last will be the one used
+                album_id_mapping[album['albumName']] = album['id']
+            return album_tree, album_id_mapping
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to fetch albums: {e}')
+            return {}, {}
