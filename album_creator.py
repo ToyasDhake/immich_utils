@@ -79,7 +79,7 @@ class ImmichAbumCreator:
         return all_assets
 
 
-    def run(self) -> None:
+    def run(self, only_new: bool = True) -> None:
         """
         Run the Immich album creator.
         """
@@ -96,6 +96,10 @@ class ImmichAbumCreator:
         existing_album_new_assets = {}
         new_album_assets = {}
         prefix_to_remove = Path(self.path)
+
+        if only_new:
+            all_assets_in_albums = set().union(*album_tree.values())
+            assets = [asset for asset in assets if asset['id'] not in all_assets_in_albums]
 
         for asset in assets:
             asset['originalPath'] = str(Path(asset['originalPath']).relative_to(prefix_to_remove))
