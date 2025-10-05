@@ -75,7 +75,7 @@ class ImmichAbumCreator:
                 break
             page += 1
             
-        logger.info(f'Total assets to download: {len(all_assets)}')
+        logger.info(f'Total assets: {len(all_assets)}')
         return all_assets
 
 
@@ -100,6 +100,7 @@ class ImmichAbumCreator:
         if only_new:
             all_assets_in_albums = set().union(*album_tree.values())
             assets = [asset for asset in assets if asset['id'] not in all_assets_in_albums]
+            logger.info(f'Found {len(assets)} new assets')
 
         for asset in assets:
             asset['originalPath'] = str(Path(asset['originalPath']).relative_to(prefix_to_remove))

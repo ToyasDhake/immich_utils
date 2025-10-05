@@ -164,7 +164,7 @@ class ImmichClient:
             payload = {
                 'ids': asset_ids
             }
-            response = requests.post(
+            response = requests.put(
                 f'{self.server_url}/api/albums/{album_id}/assets',
                 headers=self.headers,
                 json=payload
