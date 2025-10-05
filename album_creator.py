@@ -28,6 +28,7 @@ class ImmichAbumCreator:
         self.client = ImmichClient(server_url, api_key)
         self.path = path
 
+
     def fetch_all_assets(self) -> list[dict[str, Any]]:
         """
         Fetch all assets from the Immich server using pagination.
@@ -76,6 +77,7 @@ class ImmichAbumCreator:
             
         logger.info(f'Total assets to download: {len(all_assets)}')
         return all_assets
+
 
     def run(self) -> None:
         """

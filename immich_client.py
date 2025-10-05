@@ -170,7 +170,9 @@ class ImmichClient:
                 json=payload
             )
             response.raise_for_status()
-            # Check for response properly
+            for resp in response.json():
+                if not resp.get('success', False):
+                    logger.error(f'Failed to add {resp.get("id", "Unknown")} to album {album_id} reason: {resp.get("error", "Unknown")}')
             return True
         except requests.exceptions.RequestException as e:
             logger.error(f'Failed to add assets to album {album_id}: {e}')
@@ -204,7 +206,7 @@ class ImmichClient:
                 )
                 response.raise_for_status()
                 album = response.json()
-                album_tree[album['albumName']] = [asset['id'] for asset in album['assets']]
+                album_tree[album['albumName']] = set([asset['id'] for asset in album['assets']])
                 # This is not a one to one mapping, there can be multiple albums with the same name
                 # But ideally because we are creating albums bases on the path of the assets,
                 # there should be only one album with the same name
