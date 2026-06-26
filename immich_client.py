@@ -193,6 +193,24 @@ class ImmichClient:
             return []
 
 
+    def fetch_album_info(self, album_id: str) -> dict[str, Any] | None:
+        """Fetch a single album with its full asset list from the Immich server.
+
+        Args:
+            album_id: ID of the album to fetch
+        """
+        try:
+            response = requests.get(
+                f'{self.server_url}/api/albums/{album_id}',
+                headers=self.headers
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to fetch album {album_id}: {e}')
+            return None
+
+
     def fetch_album_tree(self) -> tuple[dict[str, list[str]], dict[str, str]]:
         """Fetch album tree from the Immich server."""
         try:

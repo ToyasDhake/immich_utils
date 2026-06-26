@@ -40,6 +40,21 @@ python downloader.py https://your-immich-server.com YOUR_API_KEY -o /path/to/out
 python downloader.py https://your-immich-server.com YOUR_API_KEY --list-only
 ```
 
+#### Download all assets (images and videos) in a specific album:
+```bash
+python album_downloader.py https://your-immich-server.com YOUR_API_KEY "Album Name"
+```
+
+#### Download an album to a specific output directory:
+```bash
+python album_downloader.py https://your-immich-server.com YOUR_API_KEY "Album Name" -o /path/to/output/folder
+```
+
+#### Only fetch and save the album's assets list (don't download):
+```bash
+python album_downloader.py https://your-immich-server.com YOUR_API_KEY "Album Name" --list-only
+```
+
 #### Deleter script
 ```bash
 python deleter.py https://your-immich-server.com YOUR_API_KEY
