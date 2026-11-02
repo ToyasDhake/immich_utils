@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from typing import Any
 import structlog
 from downloader import is_generated_file
@@ -105,7 +106,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Move downloaded and verified assets to the Immich trash')
     parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
     parser.add_argument('api_key', help='API key with full access')
-    parser.add_argument('--deletion_file', default='downloads/downloaded_assets.json',
+    parser.add_argument('--deletion_file',
+            default=os.path.join(os.environ.get('IMMICH_UTILS_OUTPUT', 'downloads'), 'downloaded_assets.json'),
             help='File with list of asset IDs to delete')
 
     args = parser.parse_args()

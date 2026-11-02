@@ -1,4 +1,5 @@
 import argparse
+import os
 from typing import Any
 import structlog
 from downloader import ImmichDownloader, is_generated_file
@@ -171,7 +172,8 @@ if __name__ == '__main__':
     parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
     parser.add_argument('api_key', help='API key with full access')
     parser.add_argument('album_name', help='Name of the album to download')
-    parser.add_argument('-o', '--output', default='downloads', help='Output directory (default: downloads)')
+    parser.add_argument('-o', '--output', default=os.environ.get('IMMICH_UTILS_OUTPUT', 'downloads'),
+            help='Output directory (default: downloads)')
     parser.add_argument('--list-only', action='store_true',
             help='Only fetch and save the assets list, do not download')
 

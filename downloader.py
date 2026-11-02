@@ -326,7 +326,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download assets from Immich server')
     parser.add_argument('server_url', help='Immich server URL (e.g., https://immich.example.com)')
     parser.add_argument('api_key', help='API key with full access')
-    parser.add_argument('-o', '--output', default='downloads', help='Output directory (default: downloads)')
+    parser.add_argument('-o', '--output', default=os.environ.get('IMMICH_UTILS_OUTPUT', 'downloads'),
+            help='Output directory (default: downloads)')
     parser.add_argument('--list-only', action='store_true', 
             help='Only fetch and save the assets list, do not download')
     
