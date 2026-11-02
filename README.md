@@ -1,21 +1,26 @@
 # immich_utils
 Some scripts to manage data backups on Immich server
 
+These scripts target Immich 3.2 and newer. The current stable server release is v3.3.5, and the same API calls are what v3.4.0-rc.1 documents. They will not run against Immich v2: v3 removed `deviceId` and the asset list on albums, and v3.2 replaced paged metadata search with a filter and cursor.
+
 ## Immich Asset Downloader
 
 A Python script to download assets from an Immich server, excluding assets from external libraries.
 
 ### Features
 
-- Fetches all assets from Immich server using pagination
-- Filters out assets from external library (deviceId: "Library Import")
+- Fetches uploaded assets with the metadata search filter (`libraryId` is null)
+- Skips external-library assets and assets in the trash
+- Includes archived and hidden assets, which current search returns alongside timeline assets
+- Skips generated files under encoded-video, including motion clips Immich extracted from a JPEG. The original file is downloaded instead
+- Skips photos and videos shared by a partner. Search includes those whenever the partner is shown on your timeline
 - Downloads assets with original filenames
 - Handles assets with same file name
 - Progress tracking and error handling
 - Check asset integrity of downloaded assets using SHA1 (used by Immich)
 - Uses Multi parallel process to speed up the integrity check
 - Saves assets list to JSON file
-- Deleter script moves the assets which pass integrity test to trash using pagination
+- Deleter script moves verified assets you own to the trash. Partner assets, external-library files, and generated encoded-video files are skipped
 
 ### Installation
 
@@ -41,6 +46,8 @@ python downloader.py https://your-immich-server.com YOUR_API_KEY --list-only
 ```
 
 #### Download all assets (images and videos) in a specific album:
+
+If several albums share that name, the one you own is used. Photos someone else added to the album are downloaded with it. Generated encoded-video files are skipped. The deleter will not trash the other person's photos.
 ```bash
 python album_downloader.py https://your-immich-server.com YOUR_API_KEY "Album Name"
 ```
@@ -67,7 +74,14 @@ python deleter.py https://your-immich-server.com YOUR_API_KEY --deletion_file /p
 
 ### API Key
 
-You need an API key with full access to your Immich server. You can generate one in your Immich admin panel under Settings > API Keys.
+Create a key under Account settings > API Keys. A key with the `all` permission still works. Otherwise grant:
+
+- Downloader: `server.about`, `user.read`, `asset.read`, `asset.download`
+- Album downloader: those, plus `album.read`
+- Album creator: `user.read`, `asset.read`, `album.read`, `album.create`, `albumAsset.create`
+- Deleter: `user.read`, `asset.delete`
+
+The album creator turns each folder in your external library into an album you own. Pass the library import path exactly as Immich stores it in `originalPath`. A partner's library, generated encoded-video files, and files outside that path are skipped. Assets already in any album are left alone. A folder name that matches an album shared by someone else creates your own album instead of updating theirs.
 
 ### Output
 

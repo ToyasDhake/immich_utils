@@ -7,11 +7,20 @@ import os
 from pathlib import Path
 from typing import Any
 import structlog
-from immich_client import ImmichClient
+from immich_client import UPLOADED_ASSET_FILTER, ImmichClient
 
 logger = structlog.get_logger()
 
-DEVICE_ID_TO_SKIP = 'Library Import'
+
+def is_generated_file(asset: dict[str, Any]) -> bool:
+    """True for files Immich created, such as an extracted Android motion clip.
+
+    Those live under the encoded-video folder. The JPEG they came from is the
+    original and is downloaded on its own. A transcode of a normal video is not
+    a separate asset, so this does not drop real uploaded videos.
+    """
+    original_path = (asset.get('originalPath') or '').replace('\\', '/')
+    return '/encoded-video/' in original_path
 
 
 class ImmichDownloader:
@@ -39,52 +48,35 @@ class ImmichDownloader:
 
     def fetch_all_assets(self) -> list[dict[str, Any]]:
         """
-        Fetch all assets from the Immich server using pagination.
-        Filters out assets with deviceId 'Library Import'.
+        Fetch uploaded assets from the Immich server.
+
+        External-library assets are left on the server. Trashed assets are skipped.
+        Partner-shared assets are skipped. Search includes them whenever a partner
+        is shown on your timeline, and there is no search filter for owner.
         """
         logger.info('Fetching assets from Immich server...')
-        
-        all_assets = []
-        page = 1
-        size = 100  # Fetch 100 assets per page for efficiency
-        
-        while True:
-            logger.debug(f'Fetching page {page}...')
-            
-            payload = {
-                'size': size,
-                'page': page
-            }
-            
-            data = self.client.fetch_assets_info(payload)
 
-            if not data:
-                logger.error('No data returned from Immich server')
-                break
-                
-            assets = data.get('assets', {}).get('items', [])
-            
-            if not assets:
-                logger.error('No assets returned from Immich server')
-                break
-            
-            # Filter out assets from network drive
-            filtered_assets = [
-                asset for asset in assets 
-                if asset.get('deviceId') != DEVICE_ID_TO_SKIP
-            ]
-            
-            all_assets.extend(filtered_assets)
-            logger.debug(f'Found {len(all_assets)} assets so far')
-            
-            # Check if there's a next page
-            if not data.get('assets', {}).get('nextPage'):
-                logger.info('All pages fetched')
-                break
-            page += 1
-            
-        logger.info(f'Total assets to download: {len(all_assets)}')
-        return all_assets
+        user_id = self.client.get_current_user_id()
+        if user_id is None:
+            return []
+
+        assets = self.client.search_assets(UPLOADED_ASSET_FILTER)
+        if assets is None:
+            logger.error('No data returned from Immich server')
+            return []
+
+        partner_count = sum(1 for asset in assets if asset.get('ownerId') != user_id)
+        assets = [asset for asset in assets if asset.get('ownerId') == user_id]
+        if partner_count:
+            logger.info(f'Skipping {partner_count} assets shared by a partner')
+
+        generated_count = sum(1 for asset in assets if is_generated_file(asset))
+        assets = [asset for asset in assets if not is_generated_file(asset)]
+        if generated_count:
+            logger.info(f'Skipping {generated_count} generated files under encoded-video')
+
+        logger.info(f'Total assets to download: {len(assets)}')
+        return assets
 
 
     def get_unique_filepath(self, directory: Path, filename: str) -> Path | None:
@@ -228,7 +220,9 @@ class ImmichDownloader:
 
         logger.info('Checking downloaded assets integrity...')
 
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()-2) as pool:
+        # Leave at least one core free, and never ask for zero workers.
+        workers = max(1, (os.cpu_count() or 1) - 2)
+        with multiprocessing.Pool(processes=workers) as pool:
             results = pool.map(self.run_hash_check, assets)
 
         for result, asset in zip(results, assets):
@@ -247,13 +241,15 @@ class ImmichDownloader:
                     
             asset['integrity'] = result
 
-        # Summary
-        logger.info('Integrity check complete:')
-        if results.count('missing') > 0:
-            logger.warning(f'Missing files: {results.count("missing")}')
-        if results.count('mismatch') > 0:
-            logger.warning(f'Checksum mismatches: {results.count("mismatch")}')
-        logger.info(f'Total checked: {len(assets)}')
+        verified = sum(1 for asset in assets if asset.get('integrity') == 'verified')
+        logger.info(f'Integrity check complete: {verified} of {len(assets)} verified')
+        counts: dict[str, int] = {}
+        for asset in assets:
+            status = asset.get('integrity') or 'unknown'
+            if status != 'verified':
+                counts[status] = counts.get(status, 0) + 1
+        for status, count in sorted(counts.items()):
+            logger.warning(f'{status}: {count}')
 
         return assets
 
@@ -306,8 +302,19 @@ class ImmichDownloader:
 
         # Save assets list to JSON
         self.save_assets_list(assets)
-        
-        logger.info('Completed without any errors')
+        self.report_result(assets, downloaded=download)
+
+
+    def report_result(self, assets: list[dict[str, Any]], downloaded: bool) -> None:
+        """Say whether the saved list is safe to pass to the deleter."""
+        if not downloaded:
+            logger.info('List saved. Checksums were not checked, so the deleter will not trash these assets.')
+            return
+
+        verified = sum(1 for asset in assets if asset.get('integrity') == 'verified')
+        logger.info(f'{verified} of {len(assets)} assets are verified and can be trashed')
+        if verified != len(assets):
+            logger.error(f'{len(assets) - verified} assets were not verified and will stay on the server')
 
 
 def main(args: argparse.Namespace) -> None:

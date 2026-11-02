@@ -1,10 +1,23 @@
 import argparse
-from pathlib import Path
 from typing import Any
 import structlog
-from downloader import ImmichDownloader
+from downloader import ImmichDownloader, is_generated_file
 
 logger = structlog.get_logger()
+
+
+def album_owner_id(album: dict[str, Any]) -> str | None:
+    """Return the owning user's id. Immich puts that member on albumUsers."""
+    for member in album.get('albumUsers') or []:
+        if member.get('role') == 'owner':
+            return (member.get('user') or {}).get('id')
+    return None
+
+
+def json_filename(album_name: str) -> str:
+    """Keep the assets list inside the output directory."""
+    safe_name = album_name.replace('/', ' ').replace('\\', ' ').strip() or 'album'
+    return f'{safe_name}_assets.json'
 
 
 class ImmichAlbumDownloader(ImmichDownloader):
@@ -35,6 +48,9 @@ class ImmichAlbumDownloader(ImmichDownloader):
             The album ID, or None if no matching album is found.
         """
         albums = self.client.fetch_albums()
+        if albums is None:
+            logger.error('Failed to fetch albums')
+            return None
 
         matches = [album for album in albums if album.get('albumName') == self.album_name]
 
@@ -44,12 +60,34 @@ class ImmichAlbumDownloader(ImmichDownloader):
             logger.info(f'Available albums: {available}')
             return None
 
-        if len(matches) > 1:
-            logger.warning(
-                f'Found {len(matches)} albums named "{self.album_name}", using the first one'
-            )
+        if len(matches) == 1:
+            return matches[0]['id']
 
-        return matches[0]['id']
+        user_id = self.client.get_current_user_id()
+        if user_id is None:
+            logger.error(
+                f'Found {len(matches)} albums named "{self.album_name}", '
+                'and the current user could not be resolved'
+            )
+            return None
+
+        owned = [album for album in matches if album_owner_id(album) == user_id]
+        if owned:
+            if len(owned) > 1:
+                logger.warning(
+                    f'Found {len(owned)} albums you own named "{self.album_name}", using the latest one'
+                )
+            else:
+                logger.info(
+                    f'Found {len(matches)} albums named "{self.album_name}", using the one you own'
+                )
+            return owned[-1]['id']
+
+        logger.warning(
+            f'Found {len(matches)} shared albums named "{self.album_name}", '
+            'none owned by you, using the latest one'
+        )
+        return matches[-1]['id']
 
 
     def fetch_album_assets(self) -> list[dict[str, Any]]:
@@ -67,7 +105,23 @@ class ImmichAlbumDownloader(ImmichDownloader):
             logger.error(f'Failed to fetch album "{self.album_name}"')
             return []
 
-        assets = album.get('assets', [])
+        assets = [
+            asset for asset in album.get('assets', [])
+            if asset.get('id') and asset.get('originalFileName') and not is_generated_file(asset)
+        ]
+        generated_count = sum(1 for asset in album.get('assets', []) if is_generated_file(asset))
+        if generated_count:
+            logger.info(f'Skipping {generated_count} generated files under encoded-video')
+
+        user_id = self.client.get_current_user_id()
+        if user_id is not None:
+            shared_count = sum(1 for asset in assets if asset.get('ownerId') != user_id)
+            if shared_count:
+                logger.info(
+                    f'{shared_count} assets in this album belong to someone else. '
+                    'They will download. The deleter will not trash them.'
+                )
+
         logger.info(f'Total assets to download: {len(assets)}')
         return assets
 
@@ -101,9 +155,8 @@ class ImmichAlbumDownloader(ImmichDownloader):
             assets = self.check_downloaded_assets_integrity(assets)
 
         # Save assets list to JSON
-        self.save_assets_list(assets, filename=f'{self.album_name}_assets.json')
-
-        logger.info('Completed without any errors')
+        self.save_assets_list(assets, filename=json_filename(self.album_name))
+        self.report_result(assets, downloaded=download)
 
 
 def main(args: argparse.Namespace) -> None:
